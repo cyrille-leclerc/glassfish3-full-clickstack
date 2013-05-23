@@ -1,0 +1,8 @@
+s3cfg
+pkg
+lib/
+glassfish3-full-plugin.zip
+/java
+hello.war
+.idea
+*.iml
