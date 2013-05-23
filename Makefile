@@ -15,7 +15,7 @@ include plugin.mk
 
 glassfish_ver = 3.1.2.2
 glassfish_src = "http://download.java.net/glassfish/$(glassfish_ver)/release/glassfish-$(glassfish_ver).zip"
-glassfish_src_md5 = 271f1c0d1f7481ebf34ca6b71e8c4e0f
+glassfish_src_md5 = ae8e17e9dcc80117cb4b39284302763f
 
 lib:
 	mkdir -p lib
