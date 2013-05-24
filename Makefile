@@ -36,8 +36,10 @@ lib/genapp-setup-glassfish3.jar: $(JAVA_SOURCES) $(JAVA_JARS) lib
 	$(CURDIR)/lib/genapp-setup-glassfish3.jar
 
 jmxtrans_agent_ver = 1.0.1
-jmxtrans_agent_url = http://repo1.maven.org/maven2/org/jmxtrans/agent/jmxtrans-agent/$(jmxtrans_agent_ver)/jmxtrans-agent-$(jmxtrans_agent_ver).jar
-jmxtrans_agent_md5 = d568995c11baad912919dbbb0783934e
+# jmxtrans_agent_url = http://repo1.maven.org/maven2/org/jmxtrans/agent/jmxtrans-agent/$(jmxtrans_agent_ver)/jmxtrans-agent-$(jmxtrans_agent_ver).jar
+# jmxtrans_agent_md5 = d568995c11baad912919dbbb0783934e
+jmxtrans_agent_url = https://jmxtrans.ci.cloudbees.com/job/jmxtrans-agent/lastSuccessfulBuild/artifact/target/jmxtrans-agent-1.0.2-SNAPSHOT.jar
+jmxtrans_agent_md5 = b4b364d57e9de163b16ea915933c97fa
 
 lib/jmxtrans-agent.jar:
 	mkdir -p lib
