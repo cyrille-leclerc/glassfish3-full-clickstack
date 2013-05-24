@@ -13,6 +13,7 @@ $java \
   $java_opts \
   -Dapp_port=$port \
   -Dglassfish_work_dir=\"$glassfish_work_dir\" \
+  -Djava.io.tmpdir=\"$app_tmp\" \
   -Dderby.stream.error.file=\"$log_dir/derby.log\" \
   -jar $glassfish_base/modules/glassfish.jar
 "
