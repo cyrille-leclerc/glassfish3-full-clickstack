@@ -1,11 +1,26 @@
+/*
+ * Copyright 2010-2013, CloudBees Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.cloudbees.genapp.glassfish3;
 
-import com.cloudbees.genapp.metadata.ConfigurationBuilder;
+import com.cloudbees.genapp.XmlUtils;
 import com.cloudbees.genapp.metadata.Metadata;
-import com.cloudbees.genapp.resource.Database;
-import com.cloudbees.genapp.resource.Email;
-import com.cloudbees.genapp.resource.Resource;
-import com.cloudbees.genapp.resource.SessionStore;
+import com.cloudbees.genapp.metadata.resource.Database;
+import com.cloudbees.genapp.metadata.resource.Email;
+import com.cloudbees.genapp.metadata.resource.Resource;
+import com.cloudbees.genapp.metadata.resource.SessionStore;
 import com.mysql.jdbc.NonRegisteringDriver;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -18,17 +33,19 @@ import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
+import javax.xml.xpath.XPathExpressionException;
 import java.io.File;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.logging.Logger;
 
-public class DomainXmlBuilder implements ConfigurationBuilder {
+public class DomainXmlBuilder {
 
-    private Element glassfishResourcesElement;
-    private Element glassfishServerElement;
+    private final Logger logger = Logger.getLogger(getClass().getName());
+    private Document xmlDocument;
     private Metadata metadata;
     private List<String> databaseProperties = Arrays.asList("AllowLoadLocalInfile",
             "AllowMultiQueries",
@@ -201,10 +218,7 @@ public class DomainXmlBuilder implements ConfigurationBuilder {
             "ZeroDateTimeBehavior");
 
 
-    public DomainXmlBuilder() {
-    }
-
-    private DomainXmlBuilder(Metadata metadata) {
+    public DomainXmlBuilder(Metadata metadata) {
         this.metadata = metadata;
     }
 
@@ -227,9 +241,9 @@ public class DomainXmlBuilder implements ConfigurationBuilder {
     }
 
     private DomainXmlBuilder addDatabase(Database database) {
-        System.out.println(" insert datasource " + database.getName());
+        logger.info("Insert DataSource " + database.getName());
         // <jdbc-connection-pool>
-        Element connectionPool = glassfishResourcesElement.getOwnerDocument().createElement("jdbc-connection-pool");
+        Element connectionPool = xmlDocument.createElement("jdbc-connection-pool");
         connectionPool.setAttribute("driver-classname", database.getJavaDriver());
         connectionPool.setAttribute("connection-validation-method", database.getProperty("connection-validation-method", "auto-commit"));
         connectionPool.setAttribute("is-connection-validation-required", database.getProperty("is-connection-validation-required", "true"));
@@ -263,21 +277,24 @@ public class DomainXmlBuilder implements ConfigurationBuilder {
         for (Map.Entry<String, String> entry : optionalParameters.entrySet()) {
             connectionPool.setAttribute(entry.getKey(), entry.getValue());
         }
+        Element glassfishResourcesElement = XmlUtils.getUniqueElement(xmlDocument, "/domain/resources");
 
-        this.glassfishResourcesElement.appendChild(connectionPool);
+        glassfishResourcesElement.appendChild(connectionPool);
 
         // <jdbc-resource>
-        Element jdbcResource = glassfishResourcesElement.getOwnerDocument().createElement("jdbc-resource");
+        Element jdbcResource = xmlDocument.createElement("jdbc-resource");
         jdbcResource.setAttribute("pool-name", connectionPoolName);
         String jndiName = "jdbc/" + database.getName();
         jdbcResource.setAttribute("jndi-name", jndiName);
-        this.glassfishResourcesElement.appendChild(jdbcResource);
+        glassfishResourcesElement.appendChild(jdbcResource);
 
 
         // <resource-ref ref="..." />
-        Element resourceRefElement = glassfishServerElement.getOwnerDocument().createElement("resource-ref");
+        Element glassfishServerElement = XmlUtils.getUniqueElement(xmlDocument, "/domain/servers/server");
+
+        Element resourceRefElement = xmlDocument.createElement("resource-ref");
         resourceRefElement.setAttribute("ref", jndiName);
-        this.glassfishServerElement.appendChild(resourceRefElement);
+        glassfishServerElement.appendChild(resourceRefElement);
 
         return this;
     }
@@ -289,23 +306,64 @@ public class DomainXmlBuilder implements ConfigurationBuilder {
         parent.appendChild(property);
     }
 
+    private void addAuthenticationRealm(Metadata metadata) throws XPathExpressionException {
+
+
+        String jdbcRealmBinding = metadata.getRuntimeParameter("glassfish3", "auth-realm.database", null);
+        if (jdbcRealmBinding == null) {
+            return;
+        }
+
+        // Verify that the database binding exists
+        Resource resource = metadata.getResource(jdbcRealmBinding);
+        if (resource == null || !(resource instanceof Database)) {
+            throw new RuntimeException("Database binding '" + jdbcRealmBinding + "' declared for RuntimeParameter " +
+                    "glassfish3" + "#" + "auth-realm.database" + " does not exist! Existing Resources " + metadata.getResources().keySet());
+        }
+
+        String realmName = "authentication-realm";
+        String groupsTable = "cb_groups";
+        String usersTable = "cb_users";
+        String usernameColumn = "username";
+        String passwordColumn = "password";
+        String groupNameColumn = "groupname";
+        String encodingAlgorithm = "SHA-256";
+        String encoding = "Base64";
+
+        logger.info("Insert JdbcRealm '" + realmName + "' associated to database '" + jdbcRealmBinding + "'");
+
+        Element authRealm = xmlDocument.createElement("auth-realm");
+        authRealm.setAttribute("name", realmName);
+        authRealm.setAttribute("classname", "com.sun.enterprise.security.auth.realm.jdbc.JDBCRealm");
+        // jaas-context:jdbcRealm must match an enentry in login.conf
+        addProperty("jaas-context", "jdbcRealm", authRealm);
+        addProperty("password-column", passwordColumn, authRealm);
+        addProperty("datasource-jndi", "jdbc/" + jdbcRealmBinding, authRealm);
+        addProperty("group-table", groupsTable, authRealm);
+        addProperty("user-table", usersTable, authRealm);
+        addProperty("group-name-column", groupNameColumn, authRealm);
+        addProperty("digestrealm-password-enc-algorithm", encodingAlgorithm, authRealm);
+        addProperty("digest-algorithm", encodingAlgorithm, authRealm);
+        addProperty("encoding", encoding, authRealm);
+        addProperty("user-name-column", usernameColumn, authRealm);
+
+        Element securityService = XmlUtils.getUniqueElement(xmlDocument, "domain/configs/config[@name='server-config']/security-service");
+        securityService.appendChild(authRealm);
+
+    }
+
     private DomainXmlBuilder addEmail(Email email) {
-        System.err.print("email is not yet supported, ignore it");
+        logger.warning("email is not yet supported, ignore it");
         return this;
     }
 
     private DomainXmlBuilder addSessionStore(SessionStore store) {
-        System.err.print("session store is not yet supported, ignore it");
+        logger.warning("session store is not yet supported, ignore it");
         return this;
     }
 
-    private DomainXmlBuilder fromExistingDocument(Document domainDocument) {
-        String rootElementName = domainDocument.getDocumentElement().getNodeName();
-        if (!rootElementName.equals("domain"))
-            throw new IllegalArgumentException("Document is missing root <domain> element");
-        this.glassfishResourcesElement = (Element) domainDocument.getElementsByTagName("resources").item(0);
-        Element serversElement = (Element) domainDocument.getElementsByTagName("servers").item(0);
-        this.glassfishServerElement = (Element) serversElement.getElementsByTagName("server").item(0);
+    private DomainXmlBuilder fromExistingDocument(Document domainDocument) throws XPathExpressionException {
+        xmlDocument = domainDocument;
         return this;
     }
 
@@ -317,25 +375,37 @@ public class DomainXmlBuilder implements ConfigurationBuilder {
         return this;
     }
 
-    @Override
-    public void writeConfiguration(Metadata metadata, File configurationFile) throws Exception {
+    public void writeConfiguration(String configurationRelativePath) throws Exception {
+
+
+        Map<String, String> env = System.getenv();
+        String configurationPath = env.get("app_dir") + configurationRelativePath;
+
+        // Locate configuration file
+        File configurationFile = new File(configurationPath);
+        if (!configurationFile.exists())
+            throw new Exception("Missing context config file: " + configurationFile.getAbsolutePath());
+
         Document contextXml = this.create(metadata).fromExistingDocument(configurationFile).buildContextDocument();
 
         // Write the content into XML file
         TransformerFactory transformerFactory = TransformerFactory.newInstance();
         Transformer transformer = transformerFactory.newTransformer();
         transformer.setOutputProperty(OutputKeys.INDENT, "yes");
+        transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "2");
         transformer.setOutputProperty(OutputKeys.STANDALONE, "no");
 
         transformer.transform(new DOMSource(contextXml), new StreamResult(configurationFile));
     }
 
-    private Document buildContextDocument() throws ParserConfigurationException {
-        if (glassfishResourcesElement == null) {
+    private Document buildContextDocument() throws ParserConfigurationException, XPathExpressionException {
+        if (xmlDocument == null) {
             throw new IllegalStateException();
         }
 
         addResources(metadata);
-        return glassfishResourcesElement.getOwnerDocument();
+        addAuthenticationRealm(metadata);
+        return xmlDocument;
     }
+
 }

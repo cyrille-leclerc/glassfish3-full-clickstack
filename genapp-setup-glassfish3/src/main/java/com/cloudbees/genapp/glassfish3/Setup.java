@@ -1,6 +1,22 @@
+/*
+ * Copyright 2010-2013, CloudBees Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.cloudbees.genapp.glassfish3;
 
 import com.cloudbees.genapp.metadata.EnvBuilder;
+import com.cloudbees.genapp.metadata.Metadata;
 import com.cloudbees.genapp.metadata.MetadataFinder;
 
 import java.util.Arrays;
@@ -20,13 +36,12 @@ public class Setup {
      * @throws Exception
      */
     public static void main(String[] args) throws Exception {
-        System.err.print("insert glassfish resources " + Arrays.asList(args));
+        System.out.print("insert glassfish resources " + Arrays.asList(args));
         MetadataFinder metadataFinder = new MetadataFinder();
+        Metadata metadata = metadataFinder.getMetadata();
         // Build the environment with bash-safe names, and no deprecated values.
-        metadataFinder.setup("/.genapp/control/env_safe", new EnvBuilder(true, false));
-        // Build the environment properties (bash-unsafe)
-        metadataFinder.setup("/.genapp/control/env", new EnvBuilder(false, false));
+        new EnvBuilder(true, false, metadata).writeControlFile("env_safe");
         // Build Glassfish 3 domain.xml file
-        metadataFinder.setup("/glassfish3/glassfish/domains/domain1/config/domain.xml", new DomainXmlBuilder());
+        new DomainXmlBuilder(metadata).writeConfiguration("/glassfish3/glassfish/domains/domain1/config/domain.xml");
     }
 }

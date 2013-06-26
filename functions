@@ -1,71 +1,74 @@
 # -*-shell-script-*-
 
+. "$genapp_functions/core"
 . "$plugin_dir/java/functions"
 
-glassfish_dir=$app_dir/glassfish3
-glassfish_base=$glassfish_dir/glassfish
-glassfish_autodeploy_dir=$glassfish_base/domains/domain1/autodeploy
-glassfish_config_dir=$glassfish_base/domains/domain1/config
-glassfish_lib_dir=$glassfish_base/domains/domain1/lib
-glassfish_work_dir=$glassfish_base/domains/domain1/work
-app_tmp=$app_dir/tmp
+glassfish_dir="$app_dir/glassfish3"
+glassfish_base="$glassfish_dir/glassfish"
+glassfish_domain="$glassfish_base/domains/domain1"
+glassfish_lib_dir="$glassfish_domain/lib"
+glassfish_work_dir="$glassfish_domain/work"
 
 create_app_skel() {
     echo "Creating application skeleton at $app_dir"
-    # chmod 750 "$app_dir"
-    # mkdir -m 750 "$app_dir/lib"
-    # mkdir -m 750 "$app_dir/conf"
-    # mkdir -m 770 "$app_dir/tmp"
-    rm -rf "$control_dir/env"
+    chmod 750 "$app_dir"
+    mkdir -m 770 "$app_dir/tmp"
+    mkdir -m 750 "$genapp_dir/lib"
 
-    # We need to initialize those files as they are going to be sourced later.
+    # We need to initialize this file as it is going to be sourced later.
     # Also, install_server_config step requires pre-existing files.
-    for _file in "$control_dir/env_safe" "$control_dir/env"; do
-        touch "$_file"
-        chmod 640 "$_file"
-    done
+    touch "$control_dir/env_safe"
+    chmod 640 "$control_dir/env_safe"
 }
 
 install_glassfish() {
     echo "Installing glassfish"
-    unzip -qd $app_dir $plugin_dir/lib/glassfish.zip
-    chmod -R g+w $glassfish_dir
-    mkdir -p $glassfish_lib_dir
-    chmod 770 $glassfish_lib_dir
-    chmod 660 $glassfish_lib_dir/*
-    mkdir -pm 770 $glassfish_work_dir
-    mkdir -pm 770 $app_tmp
+    unzip -qd "$app_dir" "$plugin_dir/lib/glassfish.zip"
+    # Make all files readable for the start script.
+    chmod -R o-rwx,g+r "$glassfish_dir"
+    # Make all directories executable for the start script.
+    find "$glassfish_dir" -type d -print0 | xargs -0 chmod g+x
+    # Make the glassfish_domain directory writable for the start script.
+    chmod -R g+w "$glassfish_domain"
 }
 
 install_jmxtrans_agent() {
     # The jmxtrans agent takes care of metrics reporting
     # which can be accessed with the control script stats-appstat
     echo "Installing jmxtrans-agent"
+
+    _agent_config_file="$plugin_dir/server/conf/glassfish3-metrics.xml"
+    _agent_config_file_dest="$glassfish_domain/config/glassfish3-metrics.xml"
+    install -m 640 "$_agent_config_file" "$_agent_config_file_dest"
+
     _agent_jar_file="$plugin_dir/lib/jmxtrans-agent.jar"
     _agent_jar_dest="$genapp_dir/lib/jmxtrans-agent.jar"
-    _agent_opts_file="$control_dir/java-opts-60-jmxtrans-agent"
-    _agent_config_file="$plugin_dir/server/conf/glassfish3-metrics.xml"
-    _agent_config_file_dest="$glassfish_config_dir/glassfish3-metrics.xml"
-    _agent_data_dest="$log_dir/glassfish3-metrics.data"
-
-    install -m 640 "$_agent_config_file" "$_agent_config_file_dest"
     install -m 750 "$_agent_jar_file" "$_agent_jar_dest"
 
+    _agent_data_dest="$log_dir/glassfish3-metrics.data"
     _java_opts="-javaagent:\"$_agent_jar_dest\"=\"$_agent_config_file_dest\""
     _java_opts+=" -Dglassfish3_metrics_data_file=\"$_agent_data_dest\""
 
+    _agent_opts_file="$control_dir/java-opts-60-jmxtrans-agent"
     echo "$_java_opts" >> "$_agent_opts_file"
 }
 
+install_mysql_connector_jar() {
+    echo "Installing mysql-connector"
+    _mysql_connector_jar_file="$plugin_dir/lib/mysql-connector-java.jar"
+    _mysql_connector_jar_dest="$glassfish_lib_dir/"
+    install -m 750 "$_mysql_connector_jar_file" "$_mysql_connector_jar_dest"
+}
+
 install_app() {
-    echo "Copying application war to $glassfish_autodeploy_dir"
-    cp $pkg_dir/app.war $glassfish_autodeploy_dir
-    lcount=`unzip -l $pkg_dir/app.war | grep META-INF/lib/ | wc -l`
+    echo "Copying application war to $glassfish_domain/autodeploy"
+    cp "$pkg_dir/app.war" "$glassfish_domain/autodeploy"
+    lcount=$(unzip -l $pkg_dir/app.war | grep META-INF/lib/ | wc -l)
     echo "found $lcount files matching meta-inf/lib/"
-    if [ $lcount -eq 0 ]; then
-        echo "no lib provided under META-INF/lib"
+    if [ "$lcount" -eq 0 ]; then
+        echo "No lib provided under META-INF/lib."
     else
-        unzip -jo $pkg_dir/app.war META-INF/lib/* -d $glassfish_lib_dir
+        unzip -jo "$pkg_dir/app.war" "META-INF/lib/"* -d "$glassfish_domain/lib"
     fi
 }
 
@@ -73,17 +76,15 @@ install_server_config() {
     # We install the base configuration, which will be overwritten with
     # the metadata by the genapp-setup-glassfish3 jar.
     echo "Installing server config"
-    cp $plugin_dir/server/conf/domain.xml $glassfish_config_dir/domain.xml
-    chmod 770 $glassfish_config_dir
-    chmod 660 $glassfish_config_dir/*
+    cp "$plugin_dir/server/conf/domain.xml" "$glassfish_domain/config/"
 
 
     echo "Injecting metadata into domain.xml"
     # This jar writes metadata to:
     # $control_dir/env_safe
-    # $control_dir/env
-    # $catalina_base/conf/context.xml
+    # $glassfish_domain/config/domain.xml
     $(find_java) -jar "$plugin_dir/lib/genapp-setup-glassfish3.jar"
+    chmod 640 "$glassfish_domain/config/domain.xml"
 }
 
 write_config() {
@@ -91,18 +92,18 @@ write_config() {
     echo "Writing configuration to $_config"
     java=$(find_java)
     echo "Using Java at $java"
-    echo "app_dir=\"$app_dir\"" >> $_config
-    echo "port=$app_port" >> $_config
-    echo "java=$java" >> $_config
-    echo "glassfish_home=\"$glassfish_dir\"" >> $_config
-    echo "glassfish_base=\"$glassfish_base\"" >> $_config
+    echo "app_dir=\"$app_dir\"" >> "$_config"
+    echo "port=$app_port" >> "$_config"
+    echo "java=\"$java\"" >> "$_config"
+    echo "glassfish_home=\"$glassfish_dir\"" >> "$_config"
+    echo "glassfish_base=\"$glassfish_base\"" >> "$_config"
+    echo "glassfish_domain=\"$glassfish_domain\"" >> "$_config"
     echo "glassfish_work_dir=\"$glassfish_work_dir\"" >> "$_config"
-    echo "app_tmp=\"$app_tmp\"" >> "$_config"
+    echo "app_tmp=\"$app_dir/tmp\"" >> "$_config"
     echo "log_dir=\"$log_dir\"" >> "$_config"
 }
 
 write_control() {
     echo "Writing control scripts to $control_dir"
-    install -m 550 $plugin_dir/control/start $control_dir
-    install -m 550 $plugin_dir/control/stats-appstat $control_dir
+    install -m 550 "$plugin_dir/control/"* "$control_dir/"
 }

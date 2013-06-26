@@ -14,4 +14,5 @@ install_java_control_functions
 install_server_config
 write_config
 write_java_opts
+install_mysql_connector_jar
 write_control
