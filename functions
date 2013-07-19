@@ -32,6 +32,11 @@ install_glassfish() {
     chmod -R g+w "$glassfish_domain"
 }
 
+install_jmx_invoker() {
+   cp $plugin_dir/lib/cloudbees-jmx-invoker-jar-with-dependencies.jar $genapp_dir/lib/
+   install -m 750 $plugin_dir/control/jmx_invoker $control_dir
+}
+
 install_jmxtrans_agent() {
     # The jmxtrans agent takes care of metrics reporting
     # which can be accessed with the control script stats-appstat
@@ -92,9 +97,13 @@ write_config() {
     echo "Writing configuration to $_config"
     java=$(find_java)
     echo "Using Java at $java"
-    echo "app_dir=\"$app_dir\"" >> "$_config"
-    echo "port=$app_port" >> "$_config"
     echo "java=\"$java\"" >> "$_config"
+    java_home="$(dirname $(dirname $java))"
+    echo "Using JAVA_HOME at $java_home"
+    echo "JAVA_HOME=\"$java_home\"" >> "$_config"
+    echo "app_dir=\"$app_dir\"" >> "$_config"
+    echo "genapp_dir=\"$genapp_dir\"" >> "$_config"
+    echo "port=$app_port" >> "$_config"
     echo "glassfish_home=\"$glassfish_dir\"" >> "$_config"
     echo "glassfish_base=\"$glassfish_base\"" >> "$_config"
     echo "glassfish_domain=\"$glassfish_domain\"" >> "$_config"
