@@ -16,10 +16,10 @@
 <jmxtrans-agent>
     <invocations>
         <!--
-        DON'T LOAD GLASSFISH MONITORING TO SPARE MEMORY
+        LOAD GLASSFISH MONITORING, BEWARE OF MEMORY CONSUMPTION
+        -->
         <invocation objectName="amx-support:type=boot-amx" operation="bootAMX"
                     resultAlias="glassfish_boot_amx"/>
-        -->
     </invocations>
     <queries>
         <!-- OS -->
@@ -94,31 +94,31 @@
                resultAlias="threads_count"/>
         <query objectName="java.lang:type=Threading" attribute="PeakThreadCount"
                resultAlias="threads_peakCount"/>
-        <query objectName="java.lang:type=Threading" attribute="CurrentThreadCpuTime"
+        <query objectName="java.lang:type=Threading" attribute="CurrentThreadCpuTime" type="counter"
                resultAlias="threads_cputime"/>
 
         <query objectName="java.lang:type=ClassLoading" attribute="LoadedClassCount"
                resultAlias="classes_loaded"/>
 
-        <!-- TOMCAT -->
+        <!-- GLASSFISH -->
         <query objectName="amx:pp=/mon/server-mon[server],type=web-request-mon,name=web/request"
-               attribute="requestcount" key="count" resultAlias="request_requestCount"/>
+               attribute="requestcount" key="count" type="counter" resultAlias="request_requestCount"/>
         <query objectName="amx:pp=/mon/server-mon[server],type=web-request-mon,name=web/request" attribute="errorcount"
-               key="count" resultAlias="request_errorCount"/>
+               key="count" type="counter" resultAlias="request_errorCount"/>
         <!--
         Nothing found for request_bytesReceived and request_bytesSent
         -->
         <query objectName="amx:pp=/mon/server-mon[server],type=web-request-mon,name=web/request"
-               attribute="processingtime" key="count" resultAlias="request_processingTime"/>
+               attribute="processingtime" key="count" type="counter" resultAlias="request_processingTime"/>
 
         <!-- APPLICATION -->
         <query objectName="amx:pp=/mon/server-mon[server],type=session-mon,name=web/session"
                attribute="activesessionscurrent" key="current" resultAlias="application_activeSessions"/>
         <query objectName="amx:pp=/mon/server-mon[server],type=session-mon,name=web/session"
-               attribute="expiredsessionstotal" key="count" resultAlias="application_expiredSessions"/>
+               attribute="expiredsessionstotal" key="count" type="counter" resultAlias="application_expiredSessions"/>
     </queries>
 
-    <outputWriter class="org.jmxtrans.agent.FileOverwriterOutputWriter">
+    <outputWriter class="org.jmxtrans.agent.SummarizingFileOverwriterOutputWriter">
         <fileName>${glassfish3_metrics_data_file:jmxtrans-agent.data}</fileName>
     </outputWriter>
 

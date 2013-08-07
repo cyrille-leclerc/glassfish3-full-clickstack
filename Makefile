@@ -41,18 +41,18 @@ lib/genapp-setup-glassfish3.jar: $(JAVA_SOURCES) $(JAVA_JARS) lib
 	cp genapp-setup-glassfish3-*-jar-with-dependencies.jar \
 	$(CURDIR)/lib/genapp-setup-glassfish3.jar
 
-jmxtrans_agent_ver = 1.0.1
+jmxtrans_agent_ver = 1.0.4
 jmxtrans_agent_url = http://repo1.maven.org/maven2/org/jmxtrans/agent/jmxtrans-agent/$(jmxtrans_agent_ver)/jmxtrans-agent-$(jmxtrans_agent_ver).jar
-jmxtrans_agent_md5 = d568995c11baad912919dbbb0783934e
+jmxtrans_agent_md5 = 3e6f619d2c07841812704627ed96a991
 
 lib/jmxtrans-agent.jar: lib
 	curl -fLo lib/jmxtrans-agent.jar "$(jmxtrans_agent_url)"
 	$(call check-md5,lib/jmxtrans-agent.jar,$(jmxtrans_agent_md5))
 
 
-jmx_invoker_ver = 1.0.1
+jmx_invoker_ver = 1.0.2
 jmx_invoker_src = http://repo1.maven.org/maven2/com/cloudbees/cloudbees-jmx-invoker/$(jmx_invoker_ver)/cloudbees-jmx-invoker-$(jmx_invoker_ver)-jar-with-dependencies.jar
-jmx_invoker_md5 = b789a18ad28ce5efb62fd9d62e7c7de3
+jmx_invoker_md5 = c880f7545775529cfce6ea6b67277453
 
 lib/cloudbees-jmx-invoker.jar: lib
 	mkdir -p lib
