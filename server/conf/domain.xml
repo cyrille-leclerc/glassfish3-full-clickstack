@@ -165,11 +165,10 @@
         <thread-pool name="thread-pool-1" max-thread-pool-size="200"></thread-pool>
       </thread-pools>
       <monitoring-service>
-          <module-monitoring-levels />
           <!--
-          DON'T LOAD GLASSFISH MONITORING TO SPARE MEMORY
-          <module-monitoring-levels web-container="HIGH"></module-monitoring-levels>
+          LOAD GLASSFISH MONITORING, BEWARE OF MEMORY CONSUMPTION
           -->
+          <module-monitoring-levels web-container="HIGH"></module-monitoring-levels>
       </monitoring-service>
       <group-management-service>
         <failure-detection></failure-detection>
